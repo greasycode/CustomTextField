@@ -33,7 +33,7 @@ class RboxTextField(models.CharField):
         raise TypeError("field '%s' accepts only ContentFile objects" % self.name)
                 
     def get_db_prep_value(self, value, connection, prepared=False):
-        """Convert pickle object to a string"""
+        """Save contenfileobject content to database"""
         
         name = self.fs.save(value.name, value)
         return name
