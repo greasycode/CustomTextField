@@ -78,6 +78,3 @@ class RboxTextField(models.CharField):
         if not field.help_text:
             field.help_text = "Enter valid text"
         return field    
-
-class MyModel(models.Model):
-    text = RboxTextField()
