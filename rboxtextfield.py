@@ -2,8 +2,9 @@ from django.db import models
 from django.core.files.base import ContentFile
 from custom_filefield import GridFSStorage, S3BotoStorage, CombinedFSStorage
 import uuid
-combinedfs_obj  = CombinedFSStorage(primary_storage=GridFSStorage(),
-                            backup_storage=S3BotoStorage())
+
+combinedfs_obj  = CombinedFSStorage(primary_storage=GridFSStorage(zip_n_save=True),
+                            backup_storage=S3BotoStorage(zip_n_save=True))
 
 def check_format(string):
     dollar = False
