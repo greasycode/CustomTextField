@@ -1,12 +1,46 @@
 from django.db import models
 from django.core.files.base import ContentFile
-from django.core.files import File
-from storage_backends import GridFSStorage, S3BotoStorage, CombinedFSStorage, CouchFSStorage
+from custom_filefield import GridFSStorage, S3BotoStorage, CombinedFSStorage
 import uuid
 combinedfs_obj  = CombinedFSStorage(primary_storage=GridFSStorage(),
                             backup_storage=S3BotoStorage())
 
+def check_format(string):
+    dollar = False
+    list_ind = xrange(0, len(string))
+    for i in list_ind:        
+        if i % 2 == 0:
+            dollar = not dollar
+            if dollar and string[i] == '$':
+                continue
+            elif string[i] == '#':
+                continue
+            return False
+    return True
 
+def revert_format(string):
+    new_string = ""
+    list_ind = xrange(0, len(string))
+    for i in list_ind:
+        if i % 2 == 1:
+            new_string += string[i]
+    return new_string
+    
+
+def change_format(string):
+    """ Appends $ and # to every alternate odd position"""    
+    new_string = ""
+    list_ind = xrange(0, len(string))
+    dollar = True
+    for i in list_ind:
+        if dollar:
+            new_string += '$'
+        else:
+            new_string += '#'
+        dollar = not dollar
+        new_string += string[i]        
+    return new_string
+    
 class RboxTextField(models.CharField):
     __metaclass__ = models.SubfieldBase
     
@@ -15,29 +49,27 @@ class RboxTextField(models.CharField):
         kwargs['max_length'] = 100
         super(RboxTextField, self).__init__(*args, **kwargs)
 
-    def to_python(self, value):
-        
+    def to_python(self, value):        
         if not value:
             return value
             
-        if isinstance(value, ContentFile):
-            fname = uuid.uuid4().hex
-            value.name = fname
-            return value
-        try:
-            fp = self.fs.open(value)
+        if not isinstance(value, basestring):
+            raise TypeError('Value should be string')
+            
+        if len(value) == 64 and check_format(value):
+            name = revert_format(value)
+            fp = self.fs.open(name)
             return fp.read()
-        except:
-            pass
-        
-        raise TypeError("field '%s' accepts only ContentFile objects" % self.name)
-                
+        else:
+            return value            
+            
     def get_db_prep_value(self, value, connection, prepared=False):
-        """Save contenfileobject content to database"""
-        
-        name = self.fs.save(value.name, value)
-        return name
-
+        """Convert pickle object to a string"""
+        fname = uuid.uuid4().hex
+        content_file = ContentFile(value)
+        content_file.name = fname
+        name = self.fs.save(fname, content_file)
+        return change_format(name)
 
     def formfield(self, **kwargs):
         if "form_class" not in kwargs:
@@ -45,14 +77,7 @@ class RboxTextField(models.CharField):
         field = super(RboxTextField, self).formfield(**kwargs)
         if not field.help_text:
             field.help_text = "Enter valid text"
-        return field
-try:
-    from south.modelsinspector import add_introspection_rules
-    introspection_rules = []
-    add_introspection_rules(introspection_rules, ["field.rboxtextfield.RboxTextField"])
-except ImportError:
-    pass
+        return field    
 
-        
-
-
+class MyModel(models.Model):
+    text = RboxTextField()
